@@ -18,7 +18,8 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
         'modName' => false,
         'modLogin' => false,
         'modPass' => false,
-        'modGroups' => false
+        'modGroups' => false,
+        'modMail' => false,
     );
 
     public function __construct() {
