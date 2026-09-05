@@ -158,8 +158,10 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     }
 
     private function startLogin($returnTo) {
-        $url = $this->saml->login($returnTo, array(), false, false, true);
+        $relayState = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+        $url = $this->saml->login($relayState, array(), false, false, true);
         $_SESSION['authsaml2_return_to'] = $returnTo;
+        $_SESSION['authsaml2_relay_state'] = $relayState;
         $_SESSION['authsaml2_request_id'] = $this->saml->getLastRequestID();
         $this->setCrossSiteSessionCookie();
         send_redirect($url);
@@ -267,9 +269,11 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
 
     private function consumeReturnUrl() {
         $returnTo = isset($_SESSION['authsaml2_return_to']) ? (string)$_SESSION['authsaml2_return_to'] : '';
+        $expectedRelayState = isset($_SESSION['authsaml2_relay_state']) ? (string)$_SESSION['authsaml2_relay_state'] : '';
         unset($_SESSION['authsaml2_return_to']);
+        unset($_SESSION['authsaml2_relay_state']);
         $relayState = isset($_REQUEST['RelayState']) ? (string)$_REQUEST['RelayState'] : '';
-        if ($returnTo !== '' && $relayState !== '' && hash_equals($returnTo, $relayState)) return $returnTo;
+        if ($returnTo !== '' && $expectedRelayState !== '' && hash_equals($expectedRelayState, $relayState)) return $returnTo;
         return wl();
     }
 

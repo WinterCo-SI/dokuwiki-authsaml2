@@ -63,11 +63,13 @@ class InputStub {
 
 class SamlStub {
     public $processedRequestId;
+    public $loginRelayState;
     public $errors = array();
     public $lastErrorReason;
 
-    public function login($returnTo, array $parameters, $forceAuthn, $isPassive, $stay) {
+    public function login($relayState, array $parameters, $forceAuthn, $isPassive, $stay) {
         if (!$stay) throw new Exception('Login URL must be requested without redirecting');
+        $this->loginRelayState = $relayState;
         return 'https://idp.example.test/login';
     }
 
@@ -207,6 +209,10 @@ try {
 }
 check($_SESSION['authsaml2_request_id'] === 'request-123', 'AuthnRequest ID must be stored');
 check($_SESSION['authsaml2_return_to'] === 'https://wiki.example.test/wiki/page', 'Current page must be stored for the login return');
+$relayState = $_SESSION['authsaml2_relay_state'];
+check($saml->loginRelayState === $relayState, 'Encoded RelayState must be sent to the IdP');
+check((bool)preg_match('/^[A-Za-z0-9_-]{43}$/', $relayState), 'RelayState must be a 32-byte base64url token');
+check(strpos($relayState, 'wiki.example.test') === false, 'RelayState must not expose the return URL');
 
 $processResponse = $reflection->getMethod('processSamlResponse');
 $processResponse->setAccessible(true);
@@ -231,11 +237,11 @@ $conf['plugin']['authsaml2']['debug'] = 0;
 $saml->errors = array();
 $saml->lastErrorReason = null;
 
-$_SESSION['authsaml2_return_to'] = 'https://wiki.example.test/wiki/page';
-$_REQUEST['RelayState'] = 'https://wiki.example.test/wiki/page';
+$_REQUEST['RelayState'] = $relayState;
 $consumeReturnUrl = $reflection->getMethod('consumeReturnUrl');
 $consumeReturnUrl->setAccessible(true);
 check($consumeReturnUrl->invoke($backend) === 'https://wiki.example.test/wiki/page', 'RelayState must restore the page shown before login');
+check(!isset($_SESSION['authsaml2_relay_state']), 'RelayState must be consumed once');
 unset($_REQUEST['RelayState']);
 
 $handler = new Doku_Event_Handler();
