@@ -1,4 +1,5 @@
 <?php
+$lang['acs_url_override'] = 'ACS URL override, including the saml_action=acs query parameter (leave blank to use the generated URL)';
 $lang['username_attribute'] = 'SAML attribute containing the username';
 $lang['mail_attribute'] = 'SAML attribute containing the email address';
 $lang['name_attribute'] = 'SAML attribute containing the display name';

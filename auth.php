@@ -143,12 +143,27 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     public function settings() {
         global $conf;
         return array(
+            'baseurl' => $this->samlBaseUrl(),
             'strict' => (bool)$conf['plugin']['authsaml2']['strict'],
             'debug' => (bool)$conf['plugin']['authsaml2']['debug'],
-            'sp' => array('entityId' => $conf['plugin']['authsaml2']['sp_entity_id'], 'assertionConsumerService' => array('url' => $this->endpointUrl('acs')), 'singleLogoutService' => array('url' => $this->endpointUrl('slo')), 'x509cert' => $conf['plugin']['authsaml2']['sp_x509cert'], 'privateKey' => $conf['plugin']['authsaml2']['sp_private_key']),
+            'sp' => array('entityId' => $conf['plugin']['authsaml2']['sp_entity_id'], 'assertionConsumerService' => array('url' => $this->acsUrl()), 'singleLogoutService' => array('url' => $this->endpointUrl('slo')), 'x509cert' => $conf['plugin']['authsaml2']['sp_x509cert'], 'privateKey' => $conf['plugin']['authsaml2']['sp_private_key']),
             'idp' => array('entityId' => $conf['plugin']['authsaml2']['idp_entity_id'], 'singleSignOnService' => array('url' => $conf['plugin']['authsaml2']['idp_sso_url']), 'singleLogoutService' => array('url' => $conf['plugin']['authsaml2']['idp_slo_url']), 'x509cert' => $conf['plugin']['authsaml2']['idp_x509cert']),
-            'security' => array('wantAssertionsSigned' => (bool)$conf['plugin']['authsaml2']['require_signed_assertions'], 'wantAssertionsEncrypted' => (bool)$conf['plugin']['authsaml2']['require_encrypted_assertions'])
+            'security' => array('wantAssertionsSigned' => (bool)$conf['plugin']['authsaml2']['require_signed_assertions'], 'wantAssertionsEncrypted' => (bool)$conf['plugin']['authsaml2']['require_encrypted_assertions'], 'relaxDestinationValidation' => true)
         );
+    }
+
+    private function acsUrl() {
+        $override = trim((string)$this->getConf('acs_url_override'));
+        return $override !== '' ? $override : $this->endpointUrl('acs');
+    }
+
+    private function samlBaseUrl() {
+        $parts = parse_url($this->acsUrl());
+        if ($parts === false || !isset($parts['scheme'], $parts['host'])) return rtrim(DOKU_URL, '/');
+        $url = strtolower($parts['scheme']) . '://' . $parts['host'];
+        if (isset($parts['port'])) $url .= ':' . $parts['port'];
+        if (isset($parts['path'])) $url .= $parts['path'];
+        return $url;
     }
 
     private function redirectToLogin() {
@@ -244,11 +259,33 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
             return $this->rejectSamlResponse($e->getMessage());
         }
         $errors = $this->saml->getErrors();
-        if (!$errors) return true;
+        if ($errors) {
+            $reason = $this->saml->getLastErrorReason();
+            if (!$reason) $reason = implode(', ', $errors);
+            return $this->rejectSamlResponse($reason);
+        }
 
-        $reason = $this->saml->getLastErrorReason();
-        if (!$reason) $reason = implode(', ', $errors);
-        return $this->rejectSamlResponse($reason);
+        $destinationError = $this->responseDestinationError();
+        if ($destinationError !== '') return $this->rejectSamlResponse($destinationError);
+        return true;
+    }
+
+    private function responseDestinationError() {
+        $xml = $this->saml->getLastResponseXML();
+        $document = new DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $loaded = $document->loadXML($xml, LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded || !$document->documentElement) return 'Unable to read the SAML response Destination';
+
+        $destination = trim($document->documentElement->getAttribute('Destination'));
+        $expected = $this->acsUrl();
+        if ($destination === '') return 'The SAML response has no Destination';
+        if (!hash_equals($expected, $destination)) {
+            return "The SAML response Destination '$destination' does not match the ACS URL '$expected'";
+        }
+        return '';
     }
 
     private function rejectSamlResponse($reason) {

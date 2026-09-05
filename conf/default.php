@@ -1,5 +1,6 @@
 <?php
 $conf['sp_entity_id'] = '';
+$conf['acs_url_override'] = '';
 $conf['idp_entity_id'] = '';
 $conf['idp_sso_url'] = '';
 $conf['idp_slo_url'] = '';

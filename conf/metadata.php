@@ -1,5 +1,6 @@
 <?php
 $meta['sp_entity_id'] = array('string');
+$meta['acs_url_override'] = array('string');
 $meta['idp_entity_id'] = array('string');
 $meta['idp_sso_url'] = array('string');
 $meta['idp_slo_url'] = array('string');

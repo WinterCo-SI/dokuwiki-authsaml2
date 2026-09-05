@@ -4,6 +4,8 @@ This plugin adds SAML 2.0 single sign-on to DokuWiki using the bundled OneLogin 
 
 SAML endpoints use fixed URLs at the public wiki root, such as `/?saml_action=acs`, so they do not depend on the page that initiated authentication. DokuWiki's standard Login action starts the SAML flow. RelayState contains an opaque base64url token while the return URL remains in the server-side session. Configure the username, email, display-name, and groups SAML attributes separately with `username_attribute`, `mail_attribute`, `name_attribute`, and `groups_attribute`. Their defaults are `uid`, `mail`, `displayName`, and `groups`. Every value in the configured groups attribute becomes a DokuWiki group membership. Keep certificates and private keys out of version control.
 
+The plugin validates the response Destination against the complete ACS URL, including `?saml_action=acs`. Set `acs_url_override` when the public ACS URL cannot be derived from DokuWiki's configured URL, such as behind a reverse proxy. The override is used in SP metadata and as the expected response Destination.
+
 `session_cookie_lifetime` controls how long the authenticated PHP session cookie remains valid, in seconds. Its default is 28800 seconds (8 hours), measured from a successful SAML login. The plugin uses this cookie instead of DokuWiki's separate sticky-login cookie.
 
 Rejected SAML responses are sent to DokuWiki's error logger with the toolkit's validation reason. When `debug` is enabled, the escaped reason is also included on the error page.

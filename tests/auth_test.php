@@ -66,6 +66,7 @@ class SamlStub {
     public $loginRelayState;
     public $errors = array();
     public $lastErrorReason;
+    public $lastResponseXml = '<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" Destination="https://wiki.example.test/wiki/?saml_action=acs"/>';
 
     public function login($relayState, array $parameters, $forceAuthn, $isPassive, $stay) {
         if (!$stay) throw new Exception('Login URL must be requested without redirecting');
@@ -87,6 +88,10 @@ class SamlStub {
 
     public function getLastErrorReason() {
         return $this->lastErrorReason;
+    }
+
+    public function getLastResponseXML() {
+        return $this->lastResponseXml;
     }
 }
 
@@ -152,6 +157,7 @@ $conf = array('plugin' => array('authsaml2' => array(
     'strict' => 1,
     'debug' => 0,
     'sp_entity_id' => 'https://wiki.example.test/saml',
+    'acs_url_override' => '',
     'sp_x509cert' => '',
     'sp_private_key' => '',
     'idp_entity_id' => 'https://idp.example.test/',
@@ -192,8 +198,16 @@ check(!$backend->checkPass('alice', '__authsaml2_session__'), 'Expired SAML sess
 
 $settings = $backend->settings();
 check($settings['sp']['assertionConsumerService']['url'] === 'https://wiki.example.test/wiki/?saml_action=acs', 'ACS URL must use the fixed wiki root');
+check($settings['baseurl'] === 'https://wiki.example.test/wiki/', 'SAML validation base URL must use the public ACS scheme, host, and path');
 check($settings['sp']['singleLogoutService']['url'] === 'https://wiki.example.test/wiki/?saml_action=slo', 'SLO URL must use the fixed wiki root');
 check($settings['security']['wantAssertionsEncrypted'] === true, 'Assertion encryption setting must be enabled');
+check($settings['security']['relaxDestinationValidation'] === true, 'The toolkit destination check must defer to the plugin exact check');
+
+$conf['plugin']['authsaml2']['acs_url_override'] = 'https://proxy.example.test/saml/acs?saml_action=acs';
+$overriddenSettings = $backend->settings();
+check($overriddenSettings['sp']['assertionConsumerService']['url'] === $conf['plugin']['authsaml2']['acs_url_override'], 'ACS URL override must be advertised');
+check($overriddenSettings['baseurl'] === 'https://proxy.example.test/saml/acs', 'ACS URL override must control the validation base URL');
+$conf['plugin']['authsaml2']['acs_url_override'] = '';
 
 $saml = new SamlStub();
 $samlProperty->setValue($backend, $saml);
@@ -236,6 +250,12 @@ check($samlErrorResponse->invoke($backend) === 'Invalid SAML response: &lt;inval
 $conf['plugin']['authsaml2']['debug'] = 0;
 $saml->errors = array();
 $saml->lastErrorReason = null;
+
+$saml->lastResponseXml = '<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" Destination="https://wiki.example.test/wiki/"/>';
+$_SESSION['authsaml2_request_id'] = 'request-wrong-destination';
+check($processResponse->invoke($backend) === false, 'Destination without saml_action=acs must be rejected');
+check(strpos(end(\dokuwiki\Logger::$errors)[1], 'does not match the ACS URL') !== false, 'Exact destination mismatch must be logged');
+$saml->lastResponseXml = '<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" Destination="https://wiki.example.test/wiki/?saml_action=acs"/>';
 
 $_REQUEST['RelayState'] = $relayState;
 $consumeReturnUrl = $reflection->getMethod('consumeReturnUrl');
