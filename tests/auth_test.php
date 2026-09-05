@@ -3,6 +3,8 @@
 define('DOKU_URL', 'https://wiki.example.test/wiki/');
 define('DOKU_BASE', '/wiki/');
 
+eval('namespace dokuwiki; class Logger { public static $errors = array(); public static function error($message, $details = null, $file = "", $line = 0) { self::$errors[] = array($message, $details, $file, $line); return true; } }');
+
 class RedirectSignal extends Exception {
     public $url;
 
@@ -61,6 +63,8 @@ class InputStub {
 
 class SamlStub {
     public $processedRequestId;
+    public $errors = array();
+    public $lastErrorReason;
 
     public function login($returnTo, array $parameters, $forceAuthn, $isPassive, $stay) {
         if (!$stay) throw new Exception('Login URL must be requested without redirecting');
@@ -76,7 +80,11 @@ class SamlStub {
     }
 
     public function getErrors() {
-        return array();
+        return $this->errors;
+    }
+
+    public function getLastErrorReason() {
+        return $this->lastErrorReason;
     }
 }
 
@@ -206,6 +214,22 @@ check($processResponse->invoke($backend) === true, 'Correlated SAML response mus
 check($saml->processedRequestId === 'request-123', 'AuthnRequest ID must be passed to the toolkit');
 check(!isset($_SESSION['authsaml2_request_id']), 'AuthnRequest ID must be consumed once');
 check($processResponse->invoke($backend) === false, 'Response without login state must be rejected');
+check(end(\dokuwiki\Logger::$errors)[1] === 'Missing SAML AuthnRequest ID in the session', 'Missing login state must be logged');
+
+$saml->errors = array('invalid_response');
+$saml->lastErrorReason = '<invalid issuer>';
+$_SESSION['authsaml2_request_id'] = 'request-456';
+check($processResponse->invoke($backend) === false, 'Toolkit validation errors must be rejected');
+check(end(\dokuwiki\Logger::$errors)[1] === '<invalid issuer>', 'Toolkit error reason must be logged');
+$samlErrorResponse = $reflection->getMethod('samlErrorResponse');
+$samlErrorResponse->setAccessible(true);
+$conf['plugin']['authsaml2']['debug'] = 0;
+check($samlErrorResponse->invoke($backend) === 'Invalid SAML response', 'Error details must be hidden when debug is disabled');
+$conf['plugin']['authsaml2']['debug'] = 1;
+check($samlErrorResponse->invoke($backend) === 'Invalid SAML response: &lt;invalid issuer&gt;', 'Escaped error details must be shown when debug is enabled');
+$conf['plugin']['authsaml2']['debug'] = 0;
+$saml->errors = array();
+$saml->lastErrorReason = null;
 
 $_SESSION['authsaml2_return_to'] = 'https://wiki.example.test/wiki/page';
 $_REQUEST['RelayState'] = 'https://wiki.example.test/wiki/page';

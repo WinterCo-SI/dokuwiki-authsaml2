@@ -6,6 +6,8 @@ SAML endpoints use fixed URLs at the public wiki root, such as `/?saml_action=ac
 
 `session_cookie_lifetime` controls how long the authenticated PHP session cookie remains valid, in seconds. Its default is 28800 seconds (8 hours), measured from a successful SAML login. The plugin uses this cookie instead of DokuWiki's separate sticky-login cookie.
 
+Rejected SAML responses are sent to DokuWiki's error logger with the toolkit's validation reason. When `debug` is enabled, the escaped reason is also included on the error page.
+
 Use HTTPS for the wiki and its ACS URL. The login round trip temporarily marks the PHP session cookie `SameSite=None; Secure` so the IdP's cross-site SAML POST retains the AuthnRequest and return state.
 
 Initialize the pinned SDK submodules after cloning with `git submodule update --init --recursive`.

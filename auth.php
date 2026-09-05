@@ -5,6 +5,9 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     /** @var OneLogin\\Saml2\\Auth|null */
     private $saml;
 
+    /** @var string */
+    private $lastSamlError = '';
+
     public $cando = array(
         'external' => true,
         'logout' => true,
@@ -177,7 +180,10 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
             exit;
         }
         if ($action === 'acs') {
-            if (!$this->processSamlResponse()) { http_status(401); exit('Invalid SAML response'); }
+            if (!$this->processSamlResponse()) {
+                http_status(401);
+                exit($this->samlErrorResponse());
+            }
             $user = $this->assertionUser();
             if (!$user) { http_status(401); exit('SAML response did not contain a username'); }
             $samlSession = $this->samlSession();
@@ -218,15 +224,45 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     }
 
     private function processSamlResponse() {
-        if (empty($_SESSION['authsaml2_request_id'])) return false;
+        $this->lastSamlError = '';
+        if (empty($_SESSION['authsaml2_request_id'])) {
+            return $this->rejectSamlResponse('Missing SAML AuthnRequest ID in the session');
+        }
         $requestId = (string)$_SESSION['authsaml2_request_id'];
         unset($_SESSION['authsaml2_request_id']);
         try {
-            $this->saml->processResponse($requestId);
+            $captureDebugOutput = (bool)$this->getConf('debug');
+            if ($captureDebugOutput) ob_start();
+            try {
+                $this->saml->processResponse($requestId);
+            } finally {
+                if ($captureDebugOutput) ob_end_clean();
+            }
         } catch (\Throwable $e) {
-            return false;
+            return $this->rejectSamlResponse($e->getMessage());
         }
-        return !$this->saml->getErrors();
+        $errors = $this->saml->getErrors();
+        if (!$errors) return true;
+
+        $reason = $this->saml->getLastErrorReason();
+        if (!$reason) $reason = implode(', ', $errors);
+        return $this->rejectSamlResponse($reason);
+    }
+
+    private function rejectSamlResponse($reason) {
+        $reason = trim((string)$reason);
+        if ($reason === '') $reason = 'Unknown SAML validation error';
+        $this->lastSamlError = $reason;
+        \dokuwiki\Logger::error('authsaml2: SAML response rejected', $reason, __FILE__, __LINE__);
+        return false;
+    }
+
+    private function samlErrorResponse() {
+        $message = 'Invalid SAML response';
+        if ($this->getConf('debug') && $this->lastSamlError !== '') {
+            $message .= ': ' . hsc($this->lastSamlError);
+        }
+        return $message;
     }
 
     private function consumeReturnUrl() {
