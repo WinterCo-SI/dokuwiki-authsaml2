@@ -1,0 +1,8 @@
+base   authsaml2
+author DokuWiki contributors
+email  dev@example.invalid
+date   2026-09-01
+name   SAML 2 Authentication
+desc   Authenticate DokuWiki users with a SAML 2.0 identity provider using the OneLogin PHP SAML toolkit.
+depends dokuwiki
+conf   10

@@ -1,0 +1,6 @@
+[submodule "vendor/onelogin/php-saml"]
+	path = vendor/onelogin/php-saml
+	url = https://github.com/SAML-Toolkits/php-saml.git
+[submodule "vendor/robrichards/xmlseclibs"]
+	path = vendor/robrichards/xmlseclibs
+	url = https://github.com/robrichards/xmlseclibs.git
