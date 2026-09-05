@@ -112,8 +112,13 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
 
     public function loginButton() {
         global $ID;
-        $url = $this->endpointUrl('login', array('return' => wl($ID, '', true, '&')));
+        $url = $this->loginUrl(wl($ID, '', true, '&'));
         return '<a class="button" href="' . hsc($url) . '">' . hsc($this->getLang('login')) . '</a>';
+    }
+
+    public function loginUrl($returnTo) {
+        $_SESSION['authsaml2_return_to'] = $this->localReturnUrl((string)$returnTo);
+        return $this->endpointUrl('login');
     }
 
     public function endpointUrl($action, array $parameters = array()) {
@@ -192,13 +197,15 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     private function redirectToLogin() {
         if (!$this->saml) return;
         global $ID;
-        $this->startLogin(wl($ID, '', true, '&'));
+        $this->loginUrl(wl($ID, '', true, '&'));
+        $this->startLogin();
     }
 
-    private function startLogin($returnTo) {
+    private function startLogin() {
+        $returnTo = isset($_SESSION['authsaml2_return_to']) ? (string)$_SESSION['authsaml2_return_to'] : '';
+        $_SESSION['authsaml2_return_to'] = $this->localReturnUrl($returnTo);
         $relayState = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
         $url = $this->saml->login($relayState, array(), false, false, true);
-        $_SESSION['authsaml2_return_to'] = $returnTo;
         $_SESSION['authsaml2_relay_state'] = $relayState;
         $_SESSION['authsaml2_request_id'] = $this->saml->getLastRequestID();
         $this->setCrossSiteSessionCookie();
@@ -211,8 +218,7 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
         if (empty($_REQUEST['saml_action']) || !$this->saml) return;
         $action = (string)$_REQUEST['saml_action'];
         if ($action === 'login') {
-            $returnTo = $this->localReturnUrl(isset($_REQUEST['return']) ? (string)$_REQUEST['return'] : '');
-            $this->startLogin($returnTo);
+            $this->startLogin();
         }
         if ($action === 'metadata') {
             header('Content-Type: application/xml');

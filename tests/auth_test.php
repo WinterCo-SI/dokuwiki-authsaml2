@@ -217,16 +217,25 @@ $conf['plugin']['authsaml2']['acs_url_override'] = '';
 
 $saml = new SamlStub();
 $samlProperty->setValue($backend, $saml);
-$startLogin = $reflection->getMethod('startLogin');
-$startLogin->setAccessible(true);
+$loginUrl = $backend->loginUrl('https://wiki.example.test/wiki/page');
+check($loginUrl === 'https://wiki.example.test/wiki/?saml_action=login', 'Login URL must not expose the return URL');
+check($_SESSION['authsaml2_return_to'] === 'https://wiki.example.test/wiki/page', 'Login return must be staged in the session');
+$handleRequest = $reflection->getMethod('handleRequest');
+$handleRequest->setAccessible(true);
+$_REQUEST = array(
+    'saml_action' => 'login',
+    'return' => 'https://wiki.example.test/wiki/altered'
+);
 try {
-    $startLogin->invoke($backend, 'https://wiki.example.test/wiki/page');
+    $handleRequest->invoke($backend);
     check(false, 'Login must redirect');
 } catch (ReflectionException $e) {
     throw $e;
 } catch (RedirectSignal $e) {
     check($e->url === 'https://idp.example.test/login', 'Login must redirect to the IdP');
 }
+check($_SESSION['authsaml2_return_to'] === 'https://wiki.example.test/wiki/page', 'Login endpoint must ignore an altered return parameter');
+$_REQUEST = array();
 check($_SESSION['authsaml2_request_id'] === 'request-123', 'AuthnRequest ID must be stored');
 check($_SESSION['authsaml2_return_to'] === 'https://wiki.example.test/wiki/page', 'Current page must be stored for the login return');
 $relayState = $_SESSION['authsaml2_relay_state'];
@@ -284,8 +293,10 @@ try {
 } catch (RedirectSignal $e) {
     check(parse_url($e->url, PHP_URL_PATH) === '/wiki/', 'Login redirect must use the fixed wiki root');
     check(strpos($e->url, 'saml_action=login') !== false, 'Login redirect must target the SAML login action');
+    check(strpos($e->url, 'return=') === false, 'Login redirect must not expose the return URL');
 }
 check($event->prevented && $event->stopped, 'Standard login action must be intercepted');
+check($_SESSION['authsaml2_return_to'] === 'https://wiki.example.test/wiki/namespace%3Apage', 'Login action must stage the current page in the session');
 
 $_SESSION['authsaml2_saml_session'] = array(
     'nameId' => 'alice@example.test',
