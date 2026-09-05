@@ -181,8 +181,8 @@ $_SESSION['authsaml2_expires_at']['alice'] = time() - 1;
 check(!$backend->checkPass('alice', '__authsaml2_session__'), 'Expired SAML session must be rejected');
 
 $settings = $backend->settings();
-check(parse_url($settings['sp']['assertionConsumerService']['url'], PHP_URL_PATH) === '/wiki/start', 'ACS URL must use rewritten routing');
-check(parse_url($settings['sp']['singleLogoutService']['url'], PHP_URL_PATH) === '/wiki/start', 'SLO URL must use rewritten routing');
+check($settings['sp']['assertionConsumerService']['url'] === 'https://wiki.example.test/wiki/?saml_action=acs', 'ACS URL must use the fixed wiki root');
+check($settings['sp']['singleLogoutService']['url'] === 'https://wiki.example.test/wiki/?saml_action=slo', 'SLO URL must use the fixed wiki root');
 check($settings['security']['wantAssertionsEncrypted'] === true, 'Assertion encryption setting must be enabled');
 
 $saml = new SamlStub();
@@ -198,6 +198,7 @@ try {
     check($e->url === 'https://idp.example.test/login', 'Login must redirect to the IdP');
 }
 check($_SESSION['authsaml2_request_id'] === 'request-123', 'AuthnRequest ID must be stored');
+check($_SESSION['authsaml2_return_to'] === 'https://wiki.example.test/wiki/page', 'Current page must be stored for the login return');
 
 $processResponse = $reflection->getMethod('processSamlResponse');
 $processResponse->setAccessible(true);
@@ -205,6 +206,13 @@ check($processResponse->invoke($backend) === true, 'Correlated SAML response mus
 check($saml->processedRequestId === 'request-123', 'AuthnRequest ID must be passed to the toolkit');
 check(!isset($_SESSION['authsaml2_request_id']), 'AuthnRequest ID must be consumed once');
 check($processResponse->invoke($backend) === false, 'Response without login state must be rejected');
+
+$_SESSION['authsaml2_return_to'] = 'https://wiki.example.test/wiki/page';
+$_REQUEST['RelayState'] = 'https://wiki.example.test/wiki/page';
+$consumeReturnUrl = $reflection->getMethod('consumeReturnUrl');
+$consumeReturnUrl->setAccessible(true);
+check($consumeReturnUrl->invoke($backend) === 'https://wiki.example.test/wiki/page', 'RelayState must restore the page shown before login');
+unset($_REQUEST['RelayState']);
 
 $handler = new Doku_Event_Handler();
 $action = new action_plugin_authsaml2();
@@ -218,7 +226,7 @@ try {
     $action->handleLogin($event, null);
     check(false, 'Standard login action must redirect');
 } catch (RedirectSignal $e) {
-    check(parse_url($e->url, PHP_URL_PATH) === '/wiki/start', 'Login redirect must use rewritten routing');
+    check(parse_url($e->url, PHP_URL_PATH) === '/wiki/', 'Login redirect must use the fixed wiki root');
     check(strpos($e->url, 'saml_action=login') !== false, 'Login redirect must target the SAML login action');
 }
 check($event->prevented && $event->stopped, 'Standard login action must be intercepted');
@@ -230,7 +238,7 @@ $conf['plugin']['authsaml2']['idp_x509cert'] = $certificate;
 $_SERVER['HTTPS'] = 'on';
 $_SERVER['HTTP_HOST'] = 'wiki.example.test';
 $_SERVER['SERVER_PORT'] = '443';
-$_SERVER['REQUEST_URI'] = '/wiki/start?saml_action=acs';
+$_SERVER['REQUEST_URI'] = '/wiki/?saml_action=acs';
 $_SERVER['QUERY_STRING'] = 'saml_action=acs';
 $_SERVER['SCRIPT_NAME'] = '/wiki/index';
 

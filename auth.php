@@ -86,8 +86,13 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
 
     public function loginButton() {
         global $ID;
-        $url = wl('', array('saml_action' => 'login', 'return' => wl($ID, '', true, '&')), false, '&');
+        $url = $this->endpointUrl('login', array('return' => wl($ID, '', true, '&')));
         return '<a class="button" href="' . hsc($url) . '">' . hsc($this->getLang('login')) . '</a>';
+    }
+
+    public function endpointUrl($action, array $parameters = array()) {
+        $parameters = array_merge(array('saml_action' => $action), $parameters);
+        return rtrim(DOKU_URL, '/') . '/?' . http_build_query($parameters, '', '&', PHP_QUERY_RFC3986);
     }
 
     public function saml() {
@@ -137,7 +142,7 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
         return array(
             'strict' => (bool)$conf['plugin']['authsaml2']['strict'],
             'debug' => (bool)$conf['plugin']['authsaml2']['debug'],
-            'sp' => array('entityId' => $conf['plugin']['authsaml2']['sp_entity_id'], 'assertionConsumerService' => array('url' => wl('', array('saml_action' => 'acs'), true, '&')), 'singleLogoutService' => array('url' => wl('', array('saml_action' => 'slo'), true, '&')), 'x509cert' => $conf['plugin']['authsaml2']['sp_x509cert'], 'privateKey' => $conf['plugin']['authsaml2']['sp_private_key']),
+            'sp' => array('entityId' => $conf['plugin']['authsaml2']['sp_entity_id'], 'assertionConsumerService' => array('url' => $this->endpointUrl('acs')), 'singleLogoutService' => array('url' => $this->endpointUrl('slo')), 'x509cert' => $conf['plugin']['authsaml2']['sp_x509cert'], 'privateKey' => $conf['plugin']['authsaml2']['sp_private_key']),
             'idp' => array('entityId' => $conf['plugin']['authsaml2']['idp_entity_id'], 'singleSignOnService' => array('url' => $conf['plugin']['authsaml2']['idp_sso_url']), 'singleLogoutService' => array('url' => $conf['plugin']['authsaml2']['idp_slo_url']), 'x509cert' => $conf['plugin']['authsaml2']['idp_x509cert']),
             'security' => array('wantAssertionsSigned' => (bool)$conf['plugin']['authsaml2']['require_signed_assertions'], 'wantAssertionsEncrypted' => (bool)$conf['plugin']['authsaml2']['require_encrypted_assertions'])
         );
@@ -145,7 +150,8 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
 
     private function redirectToLogin() {
         if (!$this->saml) return;
-        $this->startLogin(wl());
+        global $ID;
+        $this->startLogin(wl($ID, '', true, '&'));
     }
 
     private function startLogin($returnTo) {
