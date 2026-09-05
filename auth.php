@@ -59,8 +59,8 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     }
 
     public function logOff() {
-        if (!$this->saml) return true;
-        if (trim((string)$this->getConf('idp_slo_url')) === '' || empty($_SESSION['authsaml2_saml_session'])) {
+        if (!$this->saml || empty($_SESSION['authsaml2_saml_session'])) return true;
+        if (trim((string)$this->getConf('idp_slo_url')) === '') {
             $this->finishLocalLogout();
         }
 

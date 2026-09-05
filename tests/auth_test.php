@@ -307,6 +307,7 @@ check(!$saml->logoutCalled, 'IdP logout must not be attempted without an SLO URL
 check(!isset($_SESSION['authsaml2_saml_session']), 'Local-only logout must clear the SAML session');
 check(!isset($_SESSION['authsaml2_userinfo']), 'Local-only logout must clear cached user data');
 check(!isset($_SESSION['authsaml2_expires_at']), 'Local-only logout must clear cached expiry data');
+check($backend->logOff() === true, 'Logout without a SAML session must not redirect');
 $conf['plugin']['authsaml2']['idp_slo_url'] = 'https://idp.example.test/logout';
 
 $conf['plugin']['authsaml2']['require_encrypted_assertions'] = 0;
