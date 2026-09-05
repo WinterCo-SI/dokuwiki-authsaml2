@@ -64,6 +64,7 @@ class InputStub {
 class SamlStub {
     public $processedRequestId;
     public $loginRelayState;
+    public $logoutCalled = false;
     public $errors = array();
     public $lastErrorReason;
     public $lastResponseXml = '<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" Destination="https://wiki.example.test/wiki/?saml_action=acs"/>';
@@ -76,6 +77,11 @@ class SamlStub {
 
     public function getLastRequestID() {
         return 'request-123';
+    }
+
+    public function logout($returnTo, array $parameters, $nameId, $sessionIndex, $stay, $nameIdFormat, $nameIdNameQualifier, $nameIdSPNameQualifier) {
+        $this->logoutCalled = true;
+        return 'https://idp.example.test/logout?SAMLRequest=request';
     }
 
     public function processResponse($requestId) {
@@ -280,6 +286,28 @@ try {
     check(strpos($e->url, 'saml_action=login') !== false, 'Login redirect must target the SAML login action');
 }
 check($event->prevented && $event->stopped, 'Standard login action must be intercepted');
+
+$_SESSION['authsaml2_saml_session'] = array(
+    'nameId' => 'alice@example.test',
+    'sessionIndex' => 'session-123',
+    'nameIdFormat' => null,
+    'nameIdNameQualifier' => null,
+    'nameIdSPNameQualifier' => null
+);
+$_SESSION['authsaml2_userinfo'] = array('alice' => array('user' => 'alice'));
+$_SESSION['authsaml2_expires_at'] = array('alice' => time() + 3600);
+$conf['plugin']['authsaml2']['idp_slo_url'] = '';
+try {
+    $backend->logOff();
+    check(false, 'Local-only logout must redirect away from the login action');
+} catch (RedirectSignal $e) {
+    check($e->url === wl(), 'Local-only logout must redirect to the wiki root');
+}
+check(!$saml->logoutCalled, 'IdP logout must not be attempted without an SLO URL');
+check(!isset($_SESSION['authsaml2_saml_session']), 'Local-only logout must clear the SAML session');
+check(!isset($_SESSION['authsaml2_userinfo']), 'Local-only logout must clear cached user data');
+check(!isset($_SESSION['authsaml2_expires_at']), 'Local-only logout must clear cached expiry data');
+$conf['plugin']['authsaml2']['idp_slo_url'] = 'https://idp.example.test/logout';
 
 $conf['plugin']['authsaml2']['require_encrypted_assertions'] = 0;
 $certificate = file_get_contents(dirname(__DIR__) . '/vendor/onelogin/php-saml/tests/data/customPath/certs/sp.crt');

@@ -59,7 +59,10 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     }
 
     public function logOff() {
-        if (!$this->saml || empty($_SESSION['authsaml2_saml_session'])) return true;
+        if (!$this->saml) return true;
+        if (trim((string)$this->getConf('idp_slo_url')) === '' || empty($_SESSION['authsaml2_saml_session'])) {
+            $this->finishLocalLogout();
+        }
 
         $session = $_SESSION['authsaml2_saml_session'];
         try {
@@ -73,14 +76,33 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
                 $session['nameIdNameQualifier'],
                 $session['nameIdSPNameQualifier']
             );
-            unset($_SESSION['authsaml2_saml_session']);
-            $_SESSION['authsaml2_logout_request_id'] = $this->saml->getLastRequestID();
-            send_redirect($url);
-            exit;
         } catch (\Throwable $e) {
-            unset($_SESSION['authsaml2_logout_request_id']);
+            \dokuwiki\Logger::error('authsaml2: SAML logout failed', $e->getMessage(), __FILE__, __LINE__);
+            $this->finishLocalLogout();
         }
-        return true;
+        $this->clearSamlSession();
+        $_SESSION['authsaml2_logout_request_id'] = $this->saml->getLastRequestID();
+        send_redirect($url);
+        exit;
+    }
+
+    private function finishLocalLogout() {
+        $this->clearSamlSession();
+        send_redirect(wl());
+        exit;
+    }
+
+    private function clearSamlSession() {
+        unset(
+            $_SESSION['authsaml2_saml_session'],
+            $_SESSION['authsaml2_assertion'],
+            $_SESSION['authsaml2_userinfo'],
+            $_SESSION['authsaml2_expires_at'],
+            $_SESSION['authsaml2_request_id'],
+            $_SESSION['authsaml2_return_to'],
+            $_SESSION['authsaml2_relay_state'],
+            $_SESSION['authsaml2_logout_request_id']
+        );
     }
 
     public function getCapabilities() {

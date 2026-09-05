@@ -10,6 +10,8 @@ The plugin validates the response Destination against the complete ACS URL, incl
 
 Rejected SAML responses are sent to DokuWiki's error logger with the toolkit's validation reason. When `debug` is enabled, the escaped reason is also included on the error page.
 
+When the IdP has no SLO URL, logout clears the local DokuWiki and SAML session state and redirects to the wiki root. This avoids DokuWiki's normal post-logout redirect to the login action, which would immediately start another SSO login while the IdP session remains active.
+
 Use HTTPS for the wiki and its ACS URL. The login round trip temporarily marks the PHP session cookie `SameSite=None; Secure` so the IdP's cross-site SAML POST retains the AuthnRequest and return state.
 
 Initialize the pinned SDK submodules after cloning with `git submodule update --init --recursive`.
