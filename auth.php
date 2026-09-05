@@ -134,7 +134,7 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
             'user' => $username,
             'name' => $this->firstAttribute($attrs, $map['name']),
             'mail' => $this->firstAttribute($attrs, $map['mail']),
-            'grps' => $this->attributeValues($attrs, $map['groups'])
+            'grps' => $this->groupValues($attrs, $map['groups'])
         );
     }
 
@@ -422,5 +422,11 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     private function attributeValues($attrs, $name) {
         if (empty($attrs[$name]) || !is_array($attrs[$name])) return array();
         return array_map('strval', $attrs[$name]);
+    }
+
+    private function groupValues($attrs, $name) {
+        return array_map(function ($group) {
+            return preg_replace('/\s/u', '_', $group);
+        }, $this->attributeValues($attrs, $name));
     }
 }

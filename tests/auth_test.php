@@ -139,7 +139,7 @@ function signedSamlResponse($requestId, $destination, $spEntityId, $idpEntityId,
         '<saml:Attribute Name="uid"><saml:AttributeValue xsi:type="xs:string">alice</saml:AttributeValue></saml:Attribute>' .
         '<saml:Attribute Name="mail"><saml:AttributeValue xsi:type="xs:string">alice@example.test</saml:AttributeValue></saml:Attribute>' .
         '<saml:Attribute Name="displayName"><saml:AttributeValue xsi:type="xs:string">Alice Example</saml:AttributeValue></saml:Attribute>' .
-        '<saml:Attribute Name="groups"><saml:AttributeValue xsi:type="xs:string">editors</saml:AttributeValue><saml:AttributeValue xsi:type="xs:string">admins</saml:AttributeValue></saml:Attribute>' .
+        '<saml:Attribute Name="groups"><saml:AttributeValue xsi:type="xs:string">content editors</saml:AttributeValue><saml:AttributeValue xsi:type="xs:string">admins</saml:AttributeValue></saml:Attribute>' .
         '</saml:AttributeStatement></saml:Assertion>';
 
     $signedAssertion = OneLogin\Saml2\Utils::addSign($assertion, $key, $certificate);
@@ -351,7 +351,7 @@ $samlUser = $realBackend->assertionUser();
 check($samlUser['user'] === 'alice', 'Username must be read from the signed assertion');
 check($samlUser['mail'] === 'alice@example.test', 'Email must be read from the signed assertion');
 check($samlUser['name'] === 'Alice Example', 'Display name must be read from the signed assertion');
-check($samlUser['grps'] === array('editors', 'admins'), 'All signed group values must be mapped');
+check($samlUser['grps'] === array('content_editors', 'admins'), 'Whitespace in signed group values must be replaced with underscores');
 check($realBackend->saml()->getSessionIndex() === 'session-123', 'SAML session index must be available for logout');
 
 $_SESSION['authsaml2_request_id'] = 'different-request';
