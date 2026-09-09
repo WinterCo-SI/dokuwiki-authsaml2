@@ -26,7 +26,7 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
         parent::__construct();
         $this->saml = null;
         $this->loadSdk();
-        $this->rememberPreviousPage();
+        if (empty($_REQUEST['do']) || !in_array((string)$_REQUEST['do'], array('login', 'logout'), true)) $this->rememberCurrentPage();
         $this->handleRequest();
     }
 
@@ -64,7 +64,9 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
         $this->ensureSession();
         if (!$this->saml || empty($_SESSION['authsaml2_saml_session'])) return true;
         global $ID;
-        $returnTo = $this->localReturnUrl(wl($ID, '', true, '&'));
+        $returnTo = isset($_SESSION['authsaml2_previous_page'])
+            ? (string)$_SESSION['authsaml2_previous_page']
+            : $this->localReturnUrl(wl($ID, '', true, '&'));
         $_SESSION['authsaml2_return_to'] = $returnTo;
         if (trim((string)$this->getConf('idp_slo_url')) === '') {
             $this->finishLocalLogout($returnTo);
@@ -118,6 +120,7 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
 
     public function loginButton() {
         global $ID;
+        $this->rememberCurrentPage();
         $url = $this->loginUrl(wl($ID, '', true, '&'));
         return '<a class="button" href="' . hsc($url) . '">' . hsc($this->getLang('login')) . '</a>';
     }
@@ -130,9 +133,8 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
         return $this->endpointUrl('login');
     }
 
-    private function rememberPreviousPage() {
+    public function rememberCurrentPage() {
         $this->ensureSession();
-        if (!empty($_REQUEST['saml_action']) || !empty($_REQUEST['do']) && in_array((string)$_REQUEST['do'], array('login', 'logout'), true)) return;
         global $ID;
         if (isset($ID) && (string)$ID !== '') {
             $_SESSION['authsaml2_previous_page'] = $this->localReturnUrl($this->currentPageUrl($ID));
@@ -377,6 +379,7 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     private function consumeReturnUrl() {
         $returnTo = isset($_SESSION['authsaml2_previous_page']) ? (string)$_SESSION['authsaml2_previous_page'] : '';
         unset($_SESSION['authsaml2_return_to']);
+        unset($_SESSION['authsaml2_previous_page']);
         unset($_SESSION['authsaml2_relay_state']);
         // The AuthnRequest ID was validated before this method was called. The
         // The return URL is server-side state, so it is independent of the

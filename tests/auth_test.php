@@ -308,17 +308,23 @@ $_SESSION['authsaml2_saml_session'] = array(
 $_SESSION['authsaml2_userinfo'] = array('alice' => array('user' => 'alice'));
 $_SESSION['authsaml2_expires_at'] = array('alice' => time() + 3600);
 $conf['plugin']['authsaml2']['idp_slo_url'] = '';
+$ID = 'admin';
+$_SERVER['REQUEST_URI'] = '/doku.php?id=admin&do=admin&page=acl';
+$rememberCurrentPage = $reflection->getMethod('rememberCurrentPage');
+$rememberCurrentPage->setAccessible(true);
+$rememberCurrentPage->invoke($backend);
 try {
     $backend->logOff();
     check(false, 'Local-only logout must redirect away from the login action');
 } catch (RedirectSignal $e) {
-    check($e->url === wl(), 'Local-only logout must redirect to the wiki root');
+    check($e->url === 'https://wiki.example.test/wiki/doku.php?id=admin&do=admin&page=acl', 'Logout must return to the previous full admin URL');
 }
 check(!$saml->logoutCalled, 'IdP logout must not be attempted without an SLO URL');
 check(!isset($_SESSION['authsaml2_saml_session']), 'Local-only logout must clear the SAML session');
 check(!isset($_SESSION['authsaml2_userinfo']), 'Local-only logout must clear cached user data');
 check(!isset($_SESSION['authsaml2_expires_at']), 'Local-only logout must clear cached expiry data');
 check($backend->logOff() === true, 'Logout without a SAML session must not redirect');
+unset($_SERVER['REQUEST_URI']);
 $conf['plugin']['authsaml2']['idp_slo_url'] = 'https://idp.example.test/logout';
 
 $conf['plugin']['authsaml2']['require_encrypted_assertions'] = 0;
@@ -340,6 +346,8 @@ $realProcessResponse->setAccessible(true);
 $requestId = 'request-real-123';
 $destination = $realBackend->settings()['sp']['assertionConsumerService']['url'];
 $_SESSION['authsaml2_request_id'] = $requestId;
+$_SESSION['authsaml2_relay_state'] = 'test-relay-state';
+$_POST['RelayState'] = 'test-relay-state';
 $_POST['SAMLResponse'] = signedSamlResponse(
     $requestId,
     $destination,
