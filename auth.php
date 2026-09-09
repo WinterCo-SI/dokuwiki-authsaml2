@@ -61,6 +61,7 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     }
 
     public function logOff() {
+        $this->ensureSession();
         if (!$this->saml || empty($_SESSION['authsaml2_saml_session'])) return true;
         global $ID;
         $returnTo = $this->localReturnUrl(wl($ID, '', true, '&'));
@@ -122,6 +123,7 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     }
 
     public function loginUrl($returnTo) {
+        $this->ensureSession();
         $returnTo = $this->localReturnUrl((string)$returnTo);
         $_SESSION['authsaml2_previous_page'] = $returnTo;
         $_SESSION['authsaml2_return_to'] = $returnTo;
@@ -129,12 +131,16 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     }
 
     private function rememberPreviousPage() {
-        if (session_status() !== PHP_SESSION_ACTIVE) return;
+        $this->ensureSession();
         if (!empty($_REQUEST['saml_action']) || !empty($_REQUEST['do']) && in_array((string)$_REQUEST['do'], array('login', 'logout'), true)) return;
         global $ID;
         if (isset($ID) && (string)$ID !== '') {
             $_SESSION['authsaml2_previous_page'] = $this->localReturnUrl($this->currentPageUrl($ID));
         }
+    }
+
+    private function ensureSession() {
+        if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) session_start();
     }
 
     private function currentPageUrl($fallbackId) {
