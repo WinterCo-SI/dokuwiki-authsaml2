@@ -296,7 +296,16 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
 
         $destinationError = $this->responseDestinationError();
         if ($destinationError !== '') return $this->rejectSamlResponse($destinationError);
+        if (!$this->validRelayState()) return $this->rejectSamlResponse('Invalid SAML RelayState');
         return true;
+    }
+
+    private function validRelayState() {
+        $expected = isset($_SESSION['authsaml2_relay_state']) ? (string)$_SESSION['authsaml2_relay_state'] : '';
+        $received = isset($_REQUEST['RelayState']) ? (string)$_REQUEST['RelayState'] : '';
+        // RelayState is optional in SAML. When present, it must match the
+        // random value issued for this login request.
+        return $expected !== '' && ($received === '' || hash_equals($expected, $received));
     }
 
     private function responseDestinationError() {
@@ -335,15 +344,12 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
 
     private function consumeReturnUrl() {
         $returnTo = isset($_SESSION['authsaml2_return_to']) ? (string)$_SESSION['authsaml2_return_to'] : '';
-        $expectedRelayState = isset($_SESSION['authsaml2_relay_state']) ? (string)$_SESSION['authsaml2_relay_state'] : '';
         unset($_SESSION['authsaml2_return_to']);
         unset($_SESSION['authsaml2_relay_state']);
-        $relayState = isset($_REQUEST['RelayState']) ? (string)$_REQUEST['RelayState'] : '';
-        // The AuthnRequest ID has already been validated before this method is
-        // called.  Some IdPs omit RelayState when posting the response, so do
-        // not lose the staged page target solely because that optional value is
-        // missing.
-        if ($returnTo !== '' && $expectedRelayState !== '' && ($relayState === '' || hash_equals($expectedRelayState, $relayState))) return $returnTo;
+        // The AuthnRequest ID was validated before this method was called. The
+        // The return URL is server-side state, so it is independent of the
+        // RelayState value after that value has been checked.
+        if ($returnTo !== '') return $returnTo;
         return wl();
     }
 
