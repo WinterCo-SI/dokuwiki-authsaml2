@@ -129,7 +129,8 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     }
 
     private function rememberPreviousPage() {
-        if (!empty($_REQUEST['saml_action'])) return;
+        if (session_status() !== PHP_SESSION_ACTIVE) return;
+        if (!empty($_REQUEST['saml_action']) || !empty($_REQUEST['do']) && in_array((string)$_REQUEST['do'], array('login', 'logout'), true)) return;
         global $ID;
         if (isset($ID) && (string)$ID !== '') {
             $_SESSION['authsaml2_previous_page'] = $this->localReturnUrl($this->currentPageUrl($ID));
