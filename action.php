@@ -14,7 +14,8 @@ class action_plugin_authsaml2 extends DokuWiki_Action_Plugin {
 
         $event->preventDefault();
         $event->stopPropagation();
-        send_redirect($auth->loginUrl(wl($ID, '', true, '&')));
+        $page = isset($_REQUEST['id']) ? (string)$_REQUEST['id'] : $ID;
+        send_redirect($auth->loginUrl(wl($page, '', true, '&')));
         exit;
     }
 }

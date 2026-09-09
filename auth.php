@@ -61,14 +61,17 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
 
     public function logOff() {
         if (!$this->saml || empty($_SESSION['authsaml2_saml_session'])) return true;
+        global $ID;
+        $returnTo = $this->localReturnUrl(wl($ID, '', true, '&'));
+        $_SESSION['authsaml2_return_to'] = $returnTo;
         if (trim((string)$this->getConf('idp_slo_url')) === '') {
-            $this->finishLocalLogout();
+            $this->finishLocalLogout($returnTo);
         }
 
         $session = $_SESSION['authsaml2_saml_session'];
         try {
             $url = $this->saml->logout(
-                wl(),
+                $returnTo,
                 array(),
                 $session['nameId'],
                 $session['sessionIndex'],
@@ -87,9 +90,9 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
         exit;
     }
 
-    private function finishLocalLogout() {
+    private function finishLocalLogout($returnTo = null) {
         $this->clearSamlSession();
-        send_redirect(wl());
+        send_redirect($returnTo !== null ? $returnTo : wl());
         exit;
     }
 
@@ -254,7 +257,9 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
             $requestId = isset($_SESSION['authsaml2_logout_request_id']) ? $_SESSION['authsaml2_logout_request_id'] : null;
             $this->saml->processSLO(false, $requestId);
             if ($this->saml->getErrors()) { http_status(401); exit('Invalid SAML logout message'); }
-            send_redirect(wl());
+            $returnTo = isset($_SESSION['authsaml2_return_to']) ? (string)$_SESSION['authsaml2_return_to'] : wl();
+            $this->clearSamlSession();
+            send_redirect($this->localReturnUrl($returnTo));
             exit;
         }
     }
