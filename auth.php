@@ -339,7 +339,11 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
         unset($_SESSION['authsaml2_return_to']);
         unset($_SESSION['authsaml2_relay_state']);
         $relayState = isset($_REQUEST['RelayState']) ? (string)$_REQUEST['RelayState'] : '';
-        if ($returnTo !== '' && $expectedRelayState !== '' && hash_equals($expectedRelayState, $relayState)) return $returnTo;
+        // The AuthnRequest ID has already been validated before this method is
+        // called.  Some IdPs omit RelayState when posting the response, so do
+        // not lose the staged page target solely because that optional value is
+        // missing.
+        if ($returnTo !== '' && $expectedRelayState !== '' && ($relayState === '' || hash_equals($expectedRelayState, $relayState))) return $returnTo;
         return wl();
     }
 
