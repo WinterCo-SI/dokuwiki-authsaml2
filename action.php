@@ -14,8 +14,10 @@ class action_plugin_authsaml2 extends DokuWiki_Action_Plugin {
 
         $event->preventDefault();
         $event->stopPropagation();
-        $page = isset($_REQUEST['id']) ? (string)$_REQUEST['id'] : $ID;
-        send_redirect($auth->loginUrl(wl($page, '', true, '&')));
+        $returnTo = isset($_SESSION['authsaml2_previous_page'])
+            ? (string)$_SESSION['authsaml2_previous_page']
+            : wl($ID, '', true, '&');
+        send_redirect($auth->loginUrl($returnTo));
         exit;
     }
 }

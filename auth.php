@@ -26,6 +26,7 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
         parent::__construct();
         $this->saml = null;
         $this->loadSdk();
+        $this->rememberPreviousPage();
         $this->handleRequest();
     }
 
@@ -104,6 +105,7 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
             $_SESSION['authsaml2_expires_at'],
             $_SESSION['authsaml2_request_id'],
             $_SESSION['authsaml2_return_to'],
+            $_SESSION['authsaml2_previous_page'],
             $_SESSION['authsaml2_relay_state'],
             $_SESSION['authsaml2_logout_request_id']
         );
@@ -120,8 +122,26 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     }
 
     public function loginUrl($returnTo) {
-        $_SESSION['authsaml2_return_to'] = $this->localReturnUrl((string)$returnTo);
+        $returnTo = $this->localReturnUrl((string)$returnTo);
+        $_SESSION['authsaml2_previous_page'] = $returnTo;
+        $_SESSION['authsaml2_return_to'] = $returnTo;
         return $this->endpointUrl('login');
+    }
+
+    private function rememberPreviousPage() {
+        if (!empty($_REQUEST['saml_action'])) return;
+        global $ID;
+        if (isset($ID) && (string)$ID !== '') {
+            $_SESSION['authsaml2_previous_page'] = $this->localReturnUrl($this->currentPageUrl($ID));
+        }
+    }
+
+    private function currentPageUrl($fallbackId) {
+        if (!empty($_SERVER['REQUEST_URI'])) {
+            $base = rtrim(DOKU_URL, '/');
+            return $base . '/' . ltrim((string)$_SERVER['REQUEST_URI'], '/');
+        }
+        return wl($fallbackId, '', true, '&');
     }
 
     public function endpointUrl($action, array $parameters = array()) {
@@ -257,7 +277,7 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
             $requestId = isset($_SESSION['authsaml2_logout_request_id']) ? $_SESSION['authsaml2_logout_request_id'] : null;
             $this->saml->processSLO(false, $requestId);
             if ($this->saml->getErrors()) { http_status(401); exit('Invalid SAML logout message'); }
-            $returnTo = isset($_SESSION['authsaml2_return_to']) ? (string)$_SESSION['authsaml2_return_to'] : wl();
+            $returnTo = isset($_SESSION['authsaml2_previous_page']) ? (string)$_SESSION['authsaml2_previous_page'] : wl();
             $this->clearSamlSession();
             send_redirect($this->localReturnUrl($returnTo));
             exit;
@@ -348,7 +368,7 @@ class auth_plugin_authsaml2 extends DokuWiki_Auth_Plugin {
     }
 
     private function consumeReturnUrl() {
-        $returnTo = isset($_SESSION['authsaml2_return_to']) ? (string)$_SESSION['authsaml2_return_to'] : '';
+        $returnTo = isset($_SESSION['authsaml2_previous_page']) ? (string)$_SESSION['authsaml2_previous_page'] : '';
         unset($_SESSION['authsaml2_return_to']);
         unset($_SESSION['authsaml2_relay_state']);
         // The AuthnRequest ID was validated before this method was called. The
